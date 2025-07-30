@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kamera Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bree+Serif&display=swap" rel="stylesheet" />
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0; padding: 0;
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  h1,h2,h3 {
+    font-family: 'Bree Serif', serif;
+  }
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #222;
+    border-bottom: 1px solid #333;
+    position: relative;
+    z-index: 1001; /* Make sure header is above the iframe */
+  }
+  #mainTimer {
+    font-size: 64px;
+    color: #ff0;
+    font-weight: bold;
+    user-select: none;
+    transition: color 0.5s;
+  }
+  #settingsToggle {
+    background-color: #444;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    user-select: none;
+  }
+  #settingsPanel {
+    position: fixed;
+    top: 0; right: 0;
+    width: 320px;
+    height: 100%;
+    background: #222;
+    border-left: 2px solid #333;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    padding: 20px;
+    overflow-y: auto;
+    z-index: 2001; /* Above header/footer */
+  }
+  #settingsPanel.open {
+    transform: translateX(0);
+  }
+  #settingsPanel input, #settingsPanel select, #settingsPanel button {
+    width: 100%;
+    margin: 5px 0 10px 0;
+    padding: 6px;
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
+    margin-right: 420px; /* Make space for the iframe */
+    transition: margin-right 0.3s;
+  }
+  #cameraContainer {
+    background-color: #111;
+    border-top: 1px solid #333;
+    padding: 10px 20px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+  }
+  .category {
+    margin-bottom: 10px;
+  }
+  .category h2 {
+    font-size: 18px;
+    margin-bottom: 5px;
+    user-select: none;
+  }
+  .camera-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;      /* Add this */
+    overflow-x: visible;  /* Change from auto to visible */
+  }
+  .camera {
+    background: #222;
+    border-radius: 8px;
+    padding: 10px;
+    min-width: 160px;
+    text-align: center;
+    white-space: normal;
+    flex-shrink: 0;
+    position: relative;
+  }
+  /* Remove color changes for program/preview status */
+  .camera.none { background: #444 !important; }
+
+  /* Remove the colored top bar for program and preview */
+  .camera.program::before,
+  .camera.preview::before {
+    content: none;
+  }
+
+  /* Remove button is not shown unless in edit mode */
+  .camera .edit-btn, .camera .move-up-btn, .camera .move-down-btn {
+    width: 48%;
+    margin: 6px 1% 0 1%;
+    background: #a00;
+    border: none;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s;
+    display: inline-block;
+  }
+  .camera .edit-btn:hover, .camera .move-up-btn:hover, .camera .move-down-btn:hover {
+    background: #f33;
+  }
+  .camera .move-up-btn, .camera .move-down-btn {
+    width: 22%;
+    font-size: 16px;
+    margin: 6px 2% 0 2%;
+    background: #444;
+    color: #fff;
+  }
+  .camera .move-up-btn:disabled, .camera .move-down-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+    background: #222;
+  }
+footer {
+    background: #222;
+    padding: 5px 15px;
+    font-size: 14px;
+    color: #ccc;
+    text-align: left;
+    border-top: 1px solid #333;
+    user-select: none;
+    position: relative;
+    z-index: 1001; /* Add this to keep footer above the iframe */
+  }
+  footer.ok { color: #0f0; }
+  footer.fail { color: #f00; }
+  label {
+    user-select: none;
+  }
+  /* Vilkkuva ajastin kun loppu */
+  .blinking {
+    color: red;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink {
+    0%, 50% {
+      opacity: 1;
+    }
+    50.01%, 100% {
+      opacity: 0;
+    }
+  }
+  .category-select {
+    width: 100%;
+    margin-top: 5px;
+    margin-bottom: 15px;
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 6px;
+  }
+  .category-list {
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #222;
+    padding: 10px;
+  }
+  .category-list div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .category-list div button {
+    background: #a00;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+    border-radius: 4px;
+    padding: 0 8px;
+    user-select: none;
+    transition: background-color 0.3s ease;
+  }
+  .category-list div button:hover {
+    background: #f33;
+  }
+
+  /* Drag and drop styles */
+  .camera.dragging {
+    opacity: 0.5;
+    border: 2px dashed #fff;
+  }
+  .camera.drag-over {
+    outline: 2px solid #ff0;
+  }
+
+  /* Ontime frame panel */
+  #ontimeFramePanel {
+    position: fixed;
+    top: -24px; /* Move 24px off screen upwards */
+    right: 0;
+    width: 420px;
+    height: calc(100vh + 24px); /* Increase height to fill visible area */
+    background: #181818;
+    border-left: 2px solid #333;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    /* box-shadow removed */
+    pointer-events: none; /* Let header/footer buttons work */
+  }
+  #ontimeFramePanel iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    flex: 1 1 auto;
+    background: #222;
+    pointer-events: none; /* Make iframe non-interactable */
+  }
+  main {
+    margin-right: 420px; /* Make space for the iframe */
+    transition: margin-right 0.3s;
+  }
+  @media (max-width: 900px) {
+    #ontimeFramePanel {
+      width: 100vw;
+      left: 0;
+      right: 0;
+    }
+    main {
+      margin-right: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div id="mainTimer">03:00</div>
+  <button id="settingsToggle" onclick="toggleSettings()">⚙ Asetukset</button>
+</header>
+
+<!-- Move the iframe outside the normal flow and use CSS to make header appear above it -->
+
+<div id="ontimeFramePanel">
+  <iframe id="ontimeFrame"></iframe>
+</div>
+
+<main>
+  <div id="cameraContainer"></div>
+</main>
+
+<footer id="status" class="fail">vMix: Ei yhteyttä</footer>
+
+<div id="settingsPanel">
+  <span id="settingsClose"
+    style="position:absolute;top:12px;right:18px;z-index:1101;cursor:pointer;display:inline-block;width:32px;height:32px;line-height:32px;text-align:center;font-size:22px;color:#fff;border-radius:50%;background:rgba(0,0,0,0.15);"
+    onclick="toggleSettings()" title="Sulje asetukset"
+    onmouseover="this.style.background='rgba(255,255,255,0.15)';"
+    onmouseout="this.style.background='rgba(0,0,0,0.15)';"
+  >&times;</span>
+  <h2>Asetukset</h2>
+  <label>vMix IP:<br><input type="text" id="vmixIp" /></label>
+  <label>vMix Port:<br><input type="number" id="vmixPort" min="1" max="65535" value="8088" /></label>
+  <label>Ontime IP:<br><input type="text" id="ontimeIp" placeholder="127.0.0.1" /></label>
+  <label>Ontime Port:<br><input type="number" id="ontimePort" min="1" max="65535" value="4001" /></label>
+  <label>Ajastimen pituus (sek):<br><input type="number" id="timerLength" min="1" /></label>
+  <label>Vaihda punaiseksi kun jäljellä (sek):<br><input type="number" id="warnThreshold" min="1" value="20" /></label>
+  <label>
+    <input type="checkbox" id="editModeToggle" onchange="toggleEditMode()" />
+    Muokkaustila (järjestä ja poista kameroita)
+  </label>
+  <button onclick="applySettings()">Tallenna asetukset</button>
+
+  <hr />
+  <h3>Lisää kamera</h3>
+  <label>Nimi:<br><input type="text" id="camName" /></label>
+  <label>vMix Input:<br><input type="text" id="camInput" /></label>
+  <label>Kategoria:<br>
+    <select id="camCategorySelect">
+      <option value="">(Ei kategoriaa)</option>
+    </select>
+  </label>
+  <button onclick="addCamera()">Lisää kamera</button>
+
+  <hr />
+  <h3>Kategoriat</h3>
+  <div class="category-list" id="categoryList"></div>
+  <label>Uusi kategoria:<br><input type="text" id="newCategoryName" /></label>
+  <button onclick="addCategory()">Lisää kategoria</button>
+
+  <hr />
+  <button style="background:#a00; color:#fff;" onclick="resetAll()">Tyhjennä kaikki asetukset</button>
+</div>
+
+<script>
+  // --- Data ---
+  let vmixIp = localStorage.getItem('vmixIp') || '127.0.0.1';
+  let vmixPort = localStorage.getItem('vmixPort') || '8088';
+let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
+  let ontimePort = localStorage.getItem('ontimePort') || '4001';
+  let timerDuration = 180; // sekunteina
+  let warnThreshold = 20;  // sekunteina
+  let cameras = [];
+  let categories = [];
+  let programInput = null;
+  let previewInput = null;
+  let mainTimer = timerDuration;
+  let lastProgramInput = null;
+  let vmixInputNames = {}; // {inputNumber: inputName}
+  let editMode = false;
+
+  // --- Per-camera timers ---
+  let cameraTimers = {}; // {input: {totalTimeInProgram, currentTimeInProgram, isInProgram}}
+
+  // --- Utility ---
+  function formatTime(s) {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+
+  // --- Load / Save ---
+  function saveToStorage() {
+    localStorage.setItem('vmixIp', vmixIp);
+    localStorage.setItem('vmixPort', vmixPort);
+    localStorage.setItem('ontimeIp', ontimeIp);
+    localStorage.setItem('ontimePort', ontimePort);
+    localStorage.setItem('timerDuration', timerDuration);
+    localStorage.setItem('warnThreshold', warnThreshold);
+    localStorage.setItem('cameras', JSON.stringify(cameras));
+    localStorage.setItem('categories', JSON.stringify(categories));
+  }
+  function loadFromStorage() {
+    vmixIp = localStorage.getItem('vmixIp') || '127.0.0.1';
+    vmixPort = localStorage.getItem('vmixPort') || '8088';
+    ontimeIp = localStorage.getItem('ontimeIp') || 'localhost';
+    ontimePort = localStorage.getItem('ontimePort') || '4001';
+    timerDuration = parseInt(localStorage.getItem('timerDuration')) || 180;
+    warnThreshold = parseInt(localStorage.getItem('warnThreshold')) || 20;
+    cameras = JSON.parse(localStorage.getItem('cameras') || '[]');
+    categories = JSON.parse(localStorage.getItem('categories') || '[]');
+  }
+
+  // --- Settings Panel ---
+  function toggleSettings() {
+    const panel = document.getElementById('settingsPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+      loadSettingsToUI();
+    }
+  }
+  function loadSettingsToUI() {
+    document.getElementById('vmixIp').value = vmixIp;
+    document.getElementById('vmixPort').value = vmixPort;
+    document.getElementById('ontimeIp').value = ontimeIp;
+    document.getElementById('ontimePort').value = ontimePort;
+    document.getElementById('timerLength').value = timerDuration;
+    document.getElementById('warnThreshold').value = warnThreshold;
+    document.getElementById('editModeToggle').checked = editMode;
+    populateCategorySelect();
+    document.getElementById('camName').value = '';
+    document.getElementById('camInput').value = '';
+    document.getElementById('camCategorySelect').value = '';
+    updateCategoryListUI();
+  }
+  function applySettings() {
+    vmixIp = document.getElementById('vmixIp').value.trim() || '127.0.0.1';
+    vmixPort = document.getElementById('vmixPort').value.trim() || '8088';
+    ontimeIp = document.getElementById('ontimeIp').value.trim() || 'localhost';
+    ontimePort = document.getElementById('ontimePort').value.trim() || '4001';
+    localStorage.setItem('ontimeIp', ontimeIp);
+    localStorage.setItem('ontimePort', ontimePort);
+    localStorage.setItem('vmixPort', vmixPort);
+    const len = parseInt(document.getElementById('timerLength').value);
+    if (len > 0) timerDuration = len;
+    const warn = parseInt(document.getElementById('warnThreshold').value);
+    warnThreshold = warn > 0 ? warn : 20;
+    mainTimer = timerDuration;
+    saveToStorage();
+    updateOntimeFrameSrc();
+    updateTimerDisplay();
+    alert('Asetukset tallennettu');
+  }
+
+  // --- Edit Mode ---
+  function toggleEditMode() {
+    editMode = document.getElementById('editModeToggle').checked;
+    renderCameras();
+  }
+  function moveCamera(fromIdx, toIdx) {
+    if (toIdx < 0 || toIdx >= cameras.length) return;
+    const cam = cameras.splice(fromIdx, 1)[0];
+    cameras.splice(toIdx, 0, cam);
+    saveToStorage();
+    renderCameras();
+  }
+
+  // --- Categories ---
+  function populateCategorySelect() {
+    const select = document.getElementById('camCategorySelect');
+    select.innerHTML = '<option value="">(Ei kategoriaa)</option>';
+    for (const cat of categories) {
+      const option = document.createElement('option');
+      option.value = cat;
+      option.textContent = cat;
+      select.appendChild(option);
+    }
+  }
+  function addCategory() {
+    const newCat = document.getElementById('newCategoryName').value.trim();
+    if (!newCat) {
+      alert('Anna kategorian nimi');
+      return;
+    }
+    if (categories.includes(newCat)) {
+      alert('Kategoria on jo olemassa');
+      return;
+    }
+    categories.push(newCat);
+    saveToStorage();
+    populateCategorySelect();
+    updateCategoryListUI();
+    document.getElementById('newCategoryName').value = '';
+  }
+  function removeCategory(cat) {
+    if (!confirm(`Poistetaanko kategoria '${cat}'? Tämä poistaa myös siihen kuuluvat kamerat.`)) return;
+    categories = categories.filter(c => c !== cat);
+    // Poistetaan myös kamerat, joiden kategoria oli tämä
+    cameras = cameras.filter(cam => cam.category !== cat);
+    saveToStorage();
+    populateCategorySelect();
+    updateCategoryListUI();
+    renderCameras();
+  }
+  function updateCategoryListUI() {
+    const div = document.getElementById('categoryList');
+    div.innerHTML = '';
+    for (const cat of categories) {
+      const row = document.createElement('div');
+      const label = document.createElement('span');
+      label.textContent = cat;
+      const btn = document.createElement('button');
+      btn.textContent = 'X';
+      btn.title = `Poista kategoria '${cat}'`;
+      btn.onclick = () => removeCategory(cat);
+      row.appendChild(label);
+      row.appendChild(btn);
+      div.appendChild(row);
+    }
+  }
+
+  // --- Cameras ---
+  function addCamera() {
+    const name = document.getElementById('camName').value.trim();
+    const input = document.getElementById('camInput').value.trim();
+    const category = document.getElementById('camCategorySelect').value || null;
+    if (!name || !input) {
+      alert('Anna kameran nimi ja vMix Input');
+      return;
+    }
+    // Tarkistetaan ettei sama input ole jo kameralistassa
+    if (cameras.find(c => c.input === input)) {
+      alert('Tämä vMix Input on jo lisätty kameraksi.');
+      return;
+    }
+    cameras.push({name, input, category});
+    // Init timers
+    cameraTimers[input] = {totalTimeInProgram: 0, currentTimeInProgram: 0, isInProgram: false};
+    saveToStorage();
+    renderCameras();
+    document.getElementById('camName').value = '';
+    document.getElementById('camInput').value = '';
+    document.getElementById('camCategorySelect').value = '';
+  }
+  function removeCamera(input) {
+    if (!confirm(`Poistetaanko kamera, jonka vMix Input on '${input}'?`)) return;
+    cameras = cameras.filter(c => c.input !== input);
+    delete cameraTimers[input];
+    saveToStorage();
+    renderCameras();
+  }
+
+  // --- Render Cameras ---
+  function renderCameras() {
+    const container = document.getElementById('cameraContainer');
+    container.innerHTML = '';
+
+    // Kategoriat + kamerat
+    for (const cat of categories) {
+      const cams = cameras.filter(c => c.category === cat);
+      if (cams.length === 0) continue;
+
+      const catDiv = document.createElement('div');
+      catDiv.className = 'category';
+
+      const title = document.createElement('h2');
+      title.textContent = cat;
+      catDiv.appendChild(title);
+
+      const camRow = document.createElement('div');
+      camRow.className = 'camera-row';
+
+      for (const cam of cams) {
+        camRow.appendChild(createCameraElement(cam));
+      }
+
+      catDiv.appendChild(camRow);
+      container.appendChild(catDiv);
+    }
+
+    // Kamerat ilman kategoriaa
+    const uncategorized = cameras.filter(c => !c.category);
+    if (uncategorized.length > 0) {
+      const catDiv = document.createElement('div');
+      catDiv.className = 'category';
+
+      const title = document.createElement('h2');
+      title.textContent = '(Ei kategoriaa)';
+      catDiv.appendChild(title);
+
+      const camRow = document.createElement('div');
+      camRow.className = 'camera-row';
+
+      for (const cam of uncategorized) {
+        camRow.appendChild(createCameraElement(cam));
+      }
+
+      catDiv.appendChild(camRow);
+      container.appendChild(catDiv);
+    }
+  }
+
+  // --- Create Camera Element ---
+  function createCameraElement(cam) {
+    const div = document.createElement('div');
+    div.className = 'camera none';
+    div.dataset.input = cam.input;
+
+    // --- DRAGGABLE SUPPORT ---
+    if (editMode) {
+      div.setAttribute('draggable', 'true');
+      div.ondragstart = (e) => {
+        e.dataTransfer.setData('text/plain', cam.input);
+        div.classList.add('dragging');
+      };
+      div.ondragend = () => {
+        div.classList.remove('dragging');
+        document.querySelectorAll('.camera.drag-over').forEach(el => el.classList.remove('drag-over'));
+      };
+      div.ondragover = (e) => {
+        e.preventDefault();
+        div.classList.add('drag-over');
+      };
+      div.ondragleave = () => {
+        div.classList.remove('drag-over');
+      };
+      div.ondrop = (e) => {
+        e.preventDefault();
+        div.classList.remove('drag-over');
+        const fromInput = e.dataTransfer.getData('text/plain');
+        if (fromInput === cam.input) return;
+        const fromIdx = cameras.findIndex(c => c.input === fromInput);
+        const toIdx = cameras.findIndex(c => c.input === cam.input);
+        if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+          const camObj = cameras.splice(fromIdx, 1)[0];
+          cameras.splice(toIdx, 0, camObj);
+          saveToStorage();
+          renderCameras();
+        }
+      };
+    } else {
+      div.removeAttribute('draggable');
+      div.ondragstart = null;
+      div.ondragend = null;
+      div.ondragover = null;
+      div.ondragleave = null;
+      div.ondrop = null;
+    }
+
+    // Kameran nimi
+    const title = document.createElement('div');
+    title.textContent = cam.name;
+    title.style.fontWeight = 'bold';
+    div.appendChild(title);
+
+    // --- Per-camera timers ---
+    if (!cameraTimers[cam.input]) {
+      cameraTimers[cam.input] = {totalTimeInProgram: 0, currentTimeInProgram: 0, isInProgram: false};
+    }
+    const timersDiv = document.createElement('div');
+    timersDiv.className = 'cam-timers';
+
+    // Current session timer
+    const currentSpan = document.createElement('span');
+    currentSpan.className = 'cam-current-timer';
+    currentSpan.textContent = 'Nyt ohjelmassa: ' + formatTime(cameraTimers[cam.input].currentTimeInProgram);
+    timersDiv.appendChild(currentSpan);
+
+    // Total time
+    const totalSpan = document.createElement('span');
+    totalSpan.className = 'cam-total-timer';
+    totalSpan.style.display = 'block';
+    totalSpan.textContent = 'Yht. ohjelmassa: ' + formatTime(cameraTimers[cam.input].totalTimeInProgram);
+    timersDiv.appendChild(totalSpan);
+
+    div.appendChild(timersDiv);
+
+    // --- vMix Input Name (small font, under timers) ---
+    const inputNameDiv = document.createElement('div');
+    inputNameDiv.style.fontSize = '12px';
+    inputNameDiv.style.color = '#ccc';
+    inputNameDiv.style.marginTop = '6px';
+    inputNameDiv.textContent = vmixInputNames[cam.input] ? vmixInputNames[cam.input] : '';
+    div.appendChild(inputNameDiv);
+
+    // --- Edit mode controls ---
+    if (editMode) {
+      // Remove button
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = 'Poista';
+      removeBtn.className = 'edit-btn';
+      removeBtn.onclick = () => removeCamera(cam.input);
+      div.appendChild(removeBtn);
+
+      // Move up/down buttons
+      const idx = cameras.findIndex(c => c.input === cam.input);
+      const upBtn = document.createElement('button');
+      upBtn.textContent = '▲';
+      upBtn.title = 'Siirrä ylös';
+      upBtn.className = 'move-up-btn';
+      upBtn.disabled = idx === 0;
+      upBtn.onclick = () => moveCamera(idx, idx - 1);
+      div.appendChild(upBtn);
+
+      const downBtn = document.createElement('button');
+      downBtn.textContent = '▼';
+      downBtn.title = 'Siirrä alas';
+      downBtn.className = 'move-down-btn';
+      downBtn.disabled = idx === cameras.length - 1;
+      downBtn.onclick = () => moveCamera(idx, idx + 1);
+      div.appendChild(downBtn);
+    }
+
+    return div;
+  }
+
+  // --- Per-camera timer update ---
+  function updateCameraTimers() {
+    for (const cam of cameras) {
+      const t = cameraTimers[cam.input] || {totalTimeInProgram: 0, currentTimeInProgram: 0, isInProgram: false};
+      // If in program, increment timers
+      if (t.isInProgram) {
+        t.currentTimeInProgram++;
+        t.totalTimeInProgram++;
+      }
+      // Update UI
+      const el = document.querySelector(`.camera[data-input="${cam.input}"]`);
+      if (el) {
+        const currentSpan = el.querySelector('.cam-current-timer');
+        const totalSpan = el.querySelector('.cam-total-timer');
+        if (currentSpan) {
+          currentSpan.textContent = 'Nyt ohjelmassa: ' + formatTime(t.currentTimeInProgram);
+          // Do not change color!
+        }
+        if (totalSpan) {
+          totalSpan.textContent = 'Yht. ohjelmassa: ' + formatTime(t.totalTimeInProgram);
+        }
+      }
+    }
+  }
+
+  // --- Päivitä kameroiden tilat ---
+  function updateCameraStatus() {
+    // Käydään kamerat läpi ja päivitetään niiden luokka (program, preview, none)
+    for (const cam of cameras) {
+      const el = document.querySelector(`.camera[data-input="${cam.input}"]`);
+      if (!el) continue;
+      el.classList.remove('program', 'preview', 'none');
+      if (cam.input === programInput) {
+        el.classList.add('program');
+        // Timer logic
+        if (!cameraTimers[cam.input]) cameraTimers[cam.input] = {totalTimeInProgram: 0, currentTimeInProgram: 0, isInProgram: false};
+        if (!cameraTimers[cam.input].isInProgram) {
+          cameraTimers[cam.input].isInProgram = true;
+          cameraTimers[cam.input].currentTimeInProgram = 0;
+        }
+      } else {
+        el.classList.add(cam.input === previewInput ? 'preview' : 'none');
+        // Reset current session timer if leaving program
+        if (cameraTimers[cam.input] && cameraTimers[cam.input].isInProgram) {
+          cameraTimers[cam.input].isInProgram = false;
+          cameraTimers[cam.input].currentTimeInProgram = 0;
+        }
+      }
+    }
+  }
+
+  // --- Päivitä pääajastimen näyttö ---
+  function updateTimerDisplay() {
+    const timerDiv = document.getElementById('mainTimer');
+    if (timerDiv) {
+      timerDiv.textContent = formatTime(mainTimer);
+      timerDiv.classList.remove('blinking');
+      // Remove transition for snap effect
+      timerDiv.style.transition = 'none';
+
+      if (mainTimer === 0) {
+        timerDiv.classList.add('blinking');
+        timerDiv.style.color = 'red';
+      } else if (mainTimer <= warnThreshold) {
+        timerDiv.style.color = 'red';
+      } else {
+        timerDiv.style.color = '#ff0'; // normal color
+      }
+    }
+  }
+
+  // --- Reset all ---
+  function resetAll() {
+    if (!confirm('Haluatko varmasti tyhjentää kaikki asetukset ja kamerat?')) return;
+    localStorage.clear();
+    vmixIp = '127.0.0.1';
+    ontimeIp = 'localhost:4001';
+    timerDuration = 180;
+    warnThreshold = 20;
+    mainTimer = timerDuration;
+    cameras = [];
+    categories = [];
+    cameraTimers = {};
+    programInput = null;
+    previewInput = null;
+    lastProgramInput = null;
+    updateTimerDisplay();
+    renderCameras();
+    updateCategoryListUI();
+    populateCategorySelect();
+    updateStatus('Kaikki asetukset tyhjennetty', true);
+  }
+
+  // --- Init ---
+  function init() {
+    loadFromStorage();
+    updateTimerDisplay();
+    renderCameras();
+    updateCategoryListUI();
+    populateCategorySelect();
+    // Init cameraTimers for all cameras
+    for (const cam of cameras) {
+      if (!cameraTimers[cam.input]) cameraTimers[cam.input] = {totalTimeInProgram: 0, currentTimeInProgram: 0, isInProgram: false};
+    }
+    // Poll vMix every 0.25s (250ms)
+    setInterval(pollVmix, 250);
+    // Timer tick every 1s
+    setInterval(tickTimer, 1000);
+    // Per-camera timers every 1s
+    setInterval(updateCameraTimers, 1000);
+  }
+
+  // --- Poll vMix API ---
+  function pollVmix() {
+    fetch(`http://${vmixIp}:${vmixPort}/api`)
+      .then(res => {
+        if (!res.ok) {
+          // Show HTTP error code and status text
+          updateStatus(`vMix: HTTP ${res.status}; ${res.statusText}`, false);
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.text();
+      })
+      .then(xmlStr => {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlStr, "text/xml");
+        const program = xml.querySelector("active").textContent;
+        const preview = xml.querySelector("preview").textContent;
+
+        // Check if program camera changed
+        if (programInput !== program) {
+          mainTimer = timerDuration;
+          updateTimerDisplay();
+        }
+        programInput = program;
+        previewInput = preview;
+
+        // Build input number -> name mapping
+        vmixInputNames = {};
+        xml.querySelectorAll("input").forEach(input => {
+          const key = input.getAttribute("number");
+          const name = input.getAttribute("title");
+          vmixInputNames[key] = name;
+        });
+
+        updateCameraStatus();
+        updateStatus("vMix: OK", true);
+        renderCameras(); // re-render to update input names
+      })
+      .catch(err => {
+        // Show error details if available
+        let msg = "vMix: Ei yhteyttä";
+        if (err && err.message && err.message.startsWith("HTTP")) {
+          msg = `vMix: ${err.message}`;
+        } else if (err && err.message) {
+          msg = `vMix: ${err.message}`;
+        }
+        updateStatus(msg, false);
+      });
+  }
+
+  // --- Main timer tick ---
+  function tickTimer() {
+    if (mainTimer > 0) {
+      mainTimer--;
+      updateTimerDisplay();
+    }
+  }
+
+  // --- Status helper ---
+  function updateStatus(msg, ok) {
+    const footer = document.getElementById('status');
+    footer.textContent = msg;
+    footer.className = ok ? 'ok' : 'fail';
+  }
+
+  // --- Ontime Frame Logic ---
+  function updateOntimeFrameSrc() {
+    const frame = document.getElementById('ontimeFrame');
+    if (frame) {
+      frame.src = `http://${ontimeIp}:${ontimePort}/op`;
+    }
+  }
+
+  init();
+  window.addEventListener('DOMContentLoaded', updateOntimeFrameSrc);
+</script>
+</body>
+</html>
