@@ -64,8 +64,7 @@ header {
   }
   
   .tab.active {
-    color: #FFC032;
-    font-weight: bold;
+    color: #fff;
   }
   header > div {
     flex: 1;
@@ -88,7 +87,6 @@ header {
   #currentTime {
     font-size: 36px;
     color: #fff;
-    font-weight: bold;
     user-select: none;
     font-family: Arial, sans-serif;
   }
@@ -100,7 +98,7 @@ header {
     font-size: 12px;
     cursor: pointer;
     user-select: none;
-    margin-left: 10px;w
+    margin-left: 10px;
     text-decoration: underline;
   }
   #settingsToggle:hover {
@@ -208,7 +206,7 @@ header {
     flex-direction: column;
     justify-content: flex-end;
     overflow: hidden;
-    margin-right: 640px;
+    margin-right: 420px;
     transition: margin-right 0.3s;
     position: relative;
   }
@@ -261,6 +259,7 @@ header {
     text-align: center;
     position: static;
     margin-top: -110px;
+    transform: translateX(-110px);
   }
 
   #mainTimer {
@@ -286,13 +285,15 @@ header {
     border-top: 1px solid #333;
     padding: 10px 20px;
     overflow-x: auto;
-    overflow-y: hidden;
+    overflow-y: auto;
     white-space: nowrap;
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
     z-index: 200;
+    min-height: 120px;
+    max-height: 50vh;
   }
   .category {
     margin-bottom: 10px;
@@ -515,7 +516,7 @@ footer {
     top: 100px;
     right: 410px;
     width: 220px;
-    height: calc(100vh - 100px);
+    bottom: 150px;
     background: #1a1a1a;
     border-left: 2px solid #333;
     z-index: 900;
@@ -557,7 +558,7 @@ footer {
     font-size: 11px;
   }
   main {
-    margin-right: 640px;
+    margin-right: 420px;
     transition: margin-right 0.3s;
   }
   @media (max-width: 900px) {
@@ -580,7 +581,6 @@ footer {
   <div class="header-top">
     <div>
       <div class="header-tabs">
-        <!-- Tabs will be dynamically generated here -->
       </div>
     </div>
     <div></div>
@@ -589,8 +589,6 @@ footer {
     </div>
   </div>
 </header>
-
-<!-- Move the iframe outside the normal flow and use CSS to make header appear above it -->
 
 <div id="cameraHistoryPanel">
   <h3>Kamerahistoria</h3>
@@ -635,7 +633,6 @@ footer {
   </div>
   
   <div class="settings-content">
-    <!-- Left Column -->
     <div class="settings-section">
       <h3>Yhteydet</h3>
       <label>vMix IP:<br><input type="text" id="vmixIp" /></label>
@@ -657,7 +654,6 @@ footer {
       <button onclick="resetAll()" class="btn-danger">Tyhjennä kaikki asetukset</button>
     </div>
     
-    <!-- Right Column -->
     <div class="settings-section">
       <h3>Kamerat</h3>
       <label>Nimi:<br><input type="text" id="camName" /></label>
@@ -689,17 +685,17 @@ footer {
 let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
   let ontimePort = localStorage.getItem('ontimePort') || '4001';
   let googleSheetsUrl = localStorage.getItem('googleSheetsUrl') || '';
-  let timerDuration = 180; // sekunteina
-  let warnThreshold = 20;  // sekunteina
+  let timerDuration = 180;
+  let warnThreshold = 20;
   let cameras = [];
   let categories = [];
   let programInput = null;
   let previewInput = null;
   let mainTimer = timerDuration;
   let lastProgramInput = null;
-  let vmixInputNames = {}; // {inputNumber: inputName}
+  let vmixInputNames = {};
   let editMode = false;
-  let currentTab = 'timers'; // Track current active tab
+  let currentTab = 'timers';
   let customTabs = [];
 
   function switchTab(tabName) {
@@ -1134,6 +1130,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     cameraTimers[input] = {totalTimeInProgram: 0, currentTimeInProgram: 0, isInProgram: false};
     saveToStorage();
     renderCameras();
+    adjustAfterCameraChange();
     document.getElementById('camName').value = '';
     document.getElementById('camInput').value = '';
     document.getElementById('camCategorySelect').value = '';
@@ -1144,6 +1141,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     delete cameraTimers[input];
     saveToStorage();
     renderCameras();
+    adjustAfterCameraChange();
   }
 
   function renderCameras() {
@@ -1191,6 +1189,30 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
       catDiv.appendChild(camRow);
       container.appendChild(catDiv);
     }
+    
+    setTimeout(() => {
+      adjustCameraHistoryHeight();
+    }, 200);
+  }
+
+  function adjustCameraHistoryHeight() {
+    const cameraContainer = document.getElementById('cameraContainer');
+    const historyPanel = document.getElementById('cameraHistoryPanel');
+    
+    if (cameraContainer && historyPanel) {
+      const containerRect = cameraContainer.getBoundingClientRect();
+      const containerHeight = containerRect.height;
+      
+      const adjustedHeight = containerHeight + 26;
+      
+      historyPanel.style.bottom = adjustedHeight + 'px';
+    }
+  }
+
+  function adjustAfterCameraChange() {
+    setTimeout(() => {
+      adjustCameraHistoryHeight();
+    }, 100);
   }
 
   function createCameraElement(cam) {
@@ -1535,6 +1557,12 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     setInterval(updateProgramTimer, 10);
     updateClock();
     updateProgramTimer();
+    
+    window.addEventListener('resize', adjustCameraHistoryHeight);
+    
+    setTimeout(() => {
+      adjustCameraHistoryHeight();
+    }, 500);
   }
 
   function pollVmix() {
