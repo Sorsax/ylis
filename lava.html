@@ -748,6 +748,10 @@ footer {
         <input type="checkbox" id="tallyIndicatorToggle" onchange="toggleTallyIndicator()" style="width: auto; margin: 0 8px 0 0;" />
         Zoomaajatila
       </label>
+      <label style="display: flex; align-items: center; margin-bottom: 15px;">
+        <input type="checkbox" id="ontimeFrameToggle" onchange="toggleOntimeFrame()" style="width: auto; margin: 0 8px 0 0;" />
+        Näytä Ontime
+      </label>
       <button onclick="applySettings()" class="btn-primary">Tallenna asetukset</button>
       <button onclick="resetAll()" class="btn-danger">Tyhjennä kaikki asetukset</button>
     </div>
@@ -801,6 +805,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
   let customTabs = [];
   let showFocusIndicator = true;
   let showTallyIndicator = true;
+  let showOntimeFrame = true;
   let settingsPresets = [];
 
   function savePreset() {
@@ -831,7 +836,8 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
         categories: JSON.parse(JSON.stringify(categories)),
         customTabs: JSON.parse(JSON.stringify(customTabs)),
         showFocusIndicator: showFocusIndicator,
-        showTallyIndicator: showTallyIndicator
+        showTallyIndicator: showTallyIndicator,
+        showOntimeFrame: showOntimeFrame
       }
     };
 
@@ -868,6 +874,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     customTabs = JSON.parse(JSON.stringify(settings.customTabs));
     showFocusIndicator = settings.showFocusIndicator;
     showTallyIndicator = settings.showTallyIndicator;
+    showOntimeFrame = settings.showOntimeFrame !== undefined ? settings.showOntimeFrame : true;
 
     // Initialize camera timers for loaded cameras
     cameraTimers = {};
@@ -1265,6 +1272,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     localStorage.setItem('stage_customTabs', JSON.stringify(customTabs));
     localStorage.setItem('stage_showFocusIndicator', showFocusIndicator);
     localStorage.setItem('stage_showTallyIndicator', showTallyIndicator);
+    localStorage.setItem('stage_showOntimeFrame', showOntimeFrame);
   }
   function loadFromStorage() {
     vmixIp = localStorage.getItem('stage_vmixIp') || '127.0.0.1';
@@ -1279,6 +1287,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     customTabs = JSON.parse(localStorage.getItem('stage_customTabs') || '[]');
     showFocusIndicator = localStorage.getItem('stage_showFocusIndicator') !== 'false';
     showTallyIndicator = localStorage.getItem('stage_showTallyIndicator') !== 'false';
+    showOntimeFrame = localStorage.getItem('stage_showOntimeFrame') !== 'false';
     settingsPresets = JSON.parse(localStorage.getItem('stage_settingsPresets') || '[]');
   }
 
@@ -1298,6 +1307,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     document.getElementById('editModeToggle').checked = editMode;
     document.getElementById('focusIndicatorToggle').checked = showFocusIndicator;
     document.getElementById('tallyIndicatorToggle').checked = showTallyIndicator;
+    document.getElementById('ontimeFrameToggle').checked = showOntimeFrame;
     populateCategorySelect();
     populateVmixInputSelect();
     document.getElementById('camName').value = '';
@@ -1344,6 +1354,12 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     updateTallyIndicatorVisibility();
   }
 
+  function toggleOntimeFrame() {
+    showOntimeFrame = document.getElementById('ontimeFrameToggle').checked;
+    saveToStorage();
+    updateOntimeFrameVisibility();
+  }
+
   function updateFocusIndicatorVisibility() {
     const indicators = document.querySelectorAll('.focus-indicator');
     indicators.forEach(indicator => {
@@ -1377,6 +1393,23 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
       }
     });
   }
+
+  function updateOntimeFrameVisibility() {
+    const ontimeFrame = document.getElementById('ontimeFramePanel');
+    const historyPanel = document.getElementById('cameraHistoryPanel');
+    const mainElement = document.querySelector('main');
+    
+    if (showOntimeFrame) {
+      ontimeFrame.style.display = 'flex';
+      historyPanel.style.right = '410px';
+      mainElement.style.marginRight = '420px';
+    } else {
+      ontimeFrame.style.display = 'none';
+      historyPanel.style.right = '10px';
+      mainElement.style.marginRight = '0px';
+    }
+  }
+
   function moveCamera(fromIdx, toIdx) {
     if (toIdx < 0 || toIdx >= cameras.length) return;
     const cam = cameras.splice(fromIdx, 1)[0];
@@ -1548,6 +1581,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
       adjustCameraHistoryHeight();
       updateFocusIndicatorVisibility();
       updateTallyIndicatorVisibility();
+      updateOntimeFrameVisibility();
     }, 200);
   }
 
@@ -1906,6 +1940,9 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     previewInput = null;
     lastProgramInput = null;
     currentTab = 'sheets';
+    showFocusIndicator = true;
+    showTallyIndicator = true;
+    showOntimeFrame = true;
     updateTimerDisplay();
     renderCameras();
     renderTabs();
@@ -1935,6 +1972,7 @@ let ontimeIp = localStorage.getItem('stage_ontimeIp') || '127.0.0.1';
     setInterval(updateProgramTimer, 10);
     updateClock();
     updateProgramTimer();
+    updateOntimeFrameVisibility();
     
     window.addEventListener('resize', adjustCameraHistoryHeight);
     

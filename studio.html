@@ -659,6 +659,10 @@ footer {
         <input type="checkbox" id="editModeToggle" onchange="toggleEditMode()" style="width: auto; margin: 0 8px 0 0;" />
         Muokkaustila
       </label>
+      <label style="display: flex; align-items: center; margin-bottom: 15px;">
+        <input type="checkbox" id="ontimeFrameToggle" onchange="toggleOntimeFrame()" style="width: auto; margin: 0 8px 0 0;" />
+        Näytä Ontime
+      </label>
       <button onclick="applySettings()" class="btn-primary">Tallenna asetukset</button>
       <button onclick="resetAll()" class="btn-danger">Tyhjennä kaikki asetukset</button>
     </div>
@@ -706,6 +710,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
   let editMode = false;
   let currentTab = 'timers';
   let customTabs = [];
+  let showOntimeFrame = true;
   let settingsPresets = [];
 
   function switchTab(tabName) {
@@ -998,7 +1003,8 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
         warnThreshold: warnThreshold,
         cameras: JSON.parse(JSON.stringify(cameras)),
         categories: JSON.parse(JSON.stringify(categories)),
-        customTabs: JSON.parse(JSON.stringify(customTabs))
+        customTabs: JSON.parse(JSON.stringify(customTabs)),
+        showOntimeFrame: showOntimeFrame
       }
     };
 
@@ -1033,6 +1039,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     cameras = JSON.parse(JSON.stringify(settings.cameras));
     categories = JSON.parse(JSON.stringify(settings.categories));
     customTabs = JSON.parse(JSON.stringify(settings.customTabs));
+    showOntimeFrame = settings.showOntimeFrame !== undefined ? settings.showOntimeFrame : true;
 
     // Initialize camera timers for loaded cameras
     cameraTimers = {};
@@ -1144,6 +1151,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     localStorage.setItem('cameras', JSON.stringify(cameras));
     localStorage.setItem('categories', JSON.stringify(categories));
     localStorage.setItem('customTabs', JSON.stringify(customTabs));
+    localStorage.setItem('showOntimeFrame', showOntimeFrame);
   }
   function loadFromStorage() {
     vmixIp = localStorage.getItem('vmixIp') || '127.0.0.1';
@@ -1156,6 +1164,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     cameras = JSON.parse(localStorage.getItem('cameras') || '[]');
     categories = JSON.parse(localStorage.getItem('categories') || '[]');
     customTabs = JSON.parse(localStorage.getItem('customTabs') || '[]');
+    showOntimeFrame = localStorage.getItem('showOntimeFrame') !== 'false';
     settingsPresets = JSON.parse(localStorage.getItem('settingsPresets') || '[]');
   }
 
@@ -1175,6 +1184,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     document.getElementById('timerLength').value = timerDuration;
     document.getElementById('warnThreshold').value = warnThreshold;
     document.getElementById('editModeToggle').checked = editMode;
+    document.getElementById('ontimeFrameToggle').checked = showOntimeFrame;
     populateCategorySelect();
     document.getElementById('camName').value = '';
     document.getElementById('camInput').value = '';
@@ -1212,6 +1222,13 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     renderCameras();
     renderTabs();
   }
+
+  function toggleOntimeFrame() {
+    showOntimeFrame = document.getElementById('ontimeFrameToggle').checked;
+    saveToStorage();
+    updateOntimeFrameVisibility();
+  }
+
   function moveCamera(fromIdx, toIdx) {
     if (toIdx < 0 || toIdx >= cameras.length) return;
     const cam = cameras.splice(fromIdx, 1)[0];
@@ -1370,6 +1387,22 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
       const adjustedHeight = containerHeight + 26;
       
       historyPanel.style.bottom = adjustedHeight + 'px';
+    }
+  }
+
+  function updateOntimeFrameVisibility() {
+    const ontimeFrame = document.getElementById('ontimeFramePanel');
+    const historyPanel = document.getElementById('cameraHistoryPanel');
+    const mainElement = document.querySelector('main');
+    
+    if (showOntimeFrame) {
+      ontimeFrame.style.display = 'flex';
+      historyPanel.style.right = '410px';
+      mainElement.style.marginRight = '420px';
+    } else {
+      ontimeFrame.style.display = 'none';
+      historyPanel.style.right = '10px';
+      mainElement.style.marginRight = '0px';
     }
   }
 
@@ -1704,6 +1737,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     previewInput = null;
     lastProgramInput = null;
     currentTab = 'timers';
+    showOntimeFrame = true;
     updateTimerDisplay();
     renderCameras();
     renderTabs();
@@ -1732,6 +1766,7 @@ let ontimeIp = localStorage.getItem('ontimeIp') || '127.0.0.1';
     setInterval(updateProgramTimer, 10);
     updateClock();
     updateProgramTimer();
+    updateOntimeFrameVisibility();
     
     window.addEventListener('resize', adjustCameraHistoryHeight);
     
